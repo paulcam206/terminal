@@ -383,8 +383,13 @@
         "cellHeight": {
           "$ref": "#/$defs/CSSLengthPercentage",
           "description": "Override the height of the terminal's cells. The override works similar to CSS' line-height. Defaults to the sum of the natural glyph ascend, descend and line-gap of the primary font rounded to the nearest pixel. The default is usually quite close to setting this to 1.2."
-        }
-      },
+        },
+
+        "experimental.snapToFontMetrics": {
+          "default": false,
+          "description": "When true, snaps all font measurements to whole pixel values instead of using sub-pixel precision. Inheritable. Serialized as experimental.snapToFontMetrics in the font object.",
+          "type": "boolean"
+        }},
       "type": "object"
     },
     "ProfileGuid": {

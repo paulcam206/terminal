@@ -93,6 +93,7 @@
       <DependentUpon>NewTabMenu.xaml</DependentUpon>
     </ClInclude>
     <ClInclude Include="pch.h" />
+    <ClInclude Include="FontMetricsAnalyzer.h" />
     <ClInclude Include="SearchIndex.h" />
     <ClInclude Include="NavConstants.h" />
     <ClInclude Include="MainPage.h">
@@ -395,6 +396,14 @@
       <DependentUpon>SettingsControlsHelpers.idl</DependentUpon>
     </ClCompile>
     <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="FontMetricsAnalyzer.cpp" />
+    <ClCompile Include="$(OpenConsoleDir)src\renderer\base\PixelFontMetrics.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(OpenConsoleDir)src\renderer\inc;$(OpenConsoleDir)src\inc;$(OpenConsoleDir)src\renderer\base;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- precomp.h in renderer/base is not used here; suppress the include -->
+      <ForcedIncludeFiles>
+      </ForcedIncludeFiles>
+    </ClCompile>
     <ClCompile Include="PreviewConnection.cpp">
       <DependentUpon>PreviewConnection.h</DependentUpon>
     </ClCompile>

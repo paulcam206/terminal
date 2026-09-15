@@ -990,6 +990,30 @@
     <value>Size of the font in points.</value>
     <comment>A description for what the "font size" setting does. Presented near "Profile_FontSize".</comment>
   </data>
+  <data name="Profile_PixelFontRecommendedSizes.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Suggested font sizes</value>
+    <comment>Accessibility name for a read-only text block that lists sizes matching the current font metrics.</comment>
+  </data>
+  <data name="Profile_PixelFont.Header" xml:space="preserve">
+    <value>Snap to font metrics</value>
+    <comment>Header for a control that snaps font sizes to metrics-derived suggestions.</comment>
+  </data>
+  <data name="Profile_PixelFont.HelpText" xml:space="preserve">
+    <value>Use sizes that align the font's line height and cell width to pixels. This can be useful for some pixel fonts.</value>
+    <comment>A description for the font-metric snapping setting. Presented near "Profile_PixelFont".</comment>
+  </data>
+  <data name="Profile_PixelFontToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Snap to font metrics</value>
+    <comment>Accessibility name for the toggle switch that enables or disables font-metric snapping.</comment>
+  </data>
+  <data name="Profile_PixelFontToggle.OnContent" xml:space="preserve">
+    <value>Enabled</value>
+    <comment>Label shown when font-metric snapping is on.</comment>
+  </data>
+  <data name="Profile_PixelFontToggle.OffContent" xml:space="preserve">
+    <value>Disabled</value>
+    <comment>Label shown when font-metric snapping is off.</comment>
+  </data>
   <data name="Profile_LineHeight.Header" xml:space="preserve">
     <value>Line height</value>
     <comment>Header for a control that sets the text line height.</comment>

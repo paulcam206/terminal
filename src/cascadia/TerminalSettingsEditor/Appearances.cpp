@@ -8,6 +8,7 @@
 
 #include "EnumEntry.h"
 #include "ProfileViewModel.h"
+#include "FontMetricsAnalyzer.h"
 
 #include "Appearances.g.cpp"
 
@@ -209,7 +210,13 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
     }
 
     AppearanceViewModel::AppearanceViewModel(const Model::AppearanceConfig& appearance) :
-        _appearance{ appearance }
+        AppearanceViewModel(appearance, &::Microsoft::Terminal::Settings::Editor::AnalyzeFontFace)
+    {
+    }
+
+    AppearanceViewModel::AppearanceViewModel(const Model::AppearanceConfig& appearance, AnalyzerFn analyzerFn) :
+        _appearance{ appearance },
+        _analyzerFn{ std::move(analyzerFn) }
     {
         // Add a property changed handler to our own property changed event.
         // This propagates changes from the settings model to anybody listening to our
@@ -254,6 +261,12 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
             {
                 _NotifyChanges(L"ForegroundPreview", L"BackgroundPreview", L"SelectionBackgroundPreview", L"CursorColorPreview");
             }
+            else if (viewModelProperty == L"FontWeight")
+            {
+                // FontWeight change may affect pixel-font geometry; run analysis and
+                // update cell ratios / snap font size if pixel mode is active.
+                _onGeometryChange();
+            }
         });
 
         // Cache the original BG image path. If the user clicks "Use desktop
@@ -280,8 +293,10 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
 
         fontInfo.FontFace(value);
         _invalidateFontFaceDependents();
+        _invalidatePixelFontCache();
 
         _NotifyChanges(L"HasFontFace", L"FontFace");
+        _onGeometryChange();
     }
 
     bool AppearanceViewModel::HasFontFace() const
@@ -295,13 +310,281 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
 
         fontInfo.ClearFontFace();
         _invalidateFontFaceDependents();
+        _invalidatePixelFontCache();
 
         _NotifyChanges(L"HasFontFace", L"FontFace");
+        _onGeometryChange();
     }
 
     Model::FontConfig AppearanceViewModel::FontFaceOverrideSource() const
     {
         return _appearance.SourceProfile().FontInfo().FontFaceOverrideSource();
+    }
+
+    // -------------------------------------------------------------------------
+    // FontSize: explicit implementation with pixel-mode snapping
+    // -------------------------------------------------------------------------
+
+    float AppearanceViewModel::FontSize() const
+    {
+        return _appearance.SourceProfile().FontInfo().FontSize();
+    }
+
+    void AppearanceViewModel::FontSize(float value)
+    {
+        const auto fontInfo = _appearance.SourceProfile().FontInfo();
+
+        if (std::abs(fontInfo.FontSize() - value) <= 0.001f)
+        {
+            return;
+        }
+
+        fontInfo.FontSize(value);
+        _NotifyChanges(L"HasFontSize", L"FontSize");
+    }
+
+    bool AppearanceViewModel::HasFontSize() const
+    {
+        return _appearance.SourceProfile().FontInfo().HasFontSize();
+    }
+
+    void AppearanceViewModel::ClearFontSize()
+    {
+        const auto fontInfo = _appearance.SourceProfile().FontInfo();
+        const auto hadValue = fontInfo.HasFontSize();
+        fontInfo.ClearFontSize();
+        if (hadValue)
+        {
+            _NotifyChanges(L"HasFontSize", L"FontSize");
+        }
+    }
+
+    Model::FontConfig AppearanceViewModel::FontSizeOverrideSource() const
+    {
+        return _appearance.SourceProfile().FontInfo().FontSizeOverrideSource();
+    }
+
+    bool AppearanceViewModel::SnapToFontMetrics() const
+    {
+        return _appearance.SourceProfile().FontInfo().SnapToFontMetrics();
+    }
+
+    void AppearanceViewModel::SnapToFontMetrics(bool value)
+    {
+        const auto fontInfo = _appearance.SourceProfile().FontInfo();
+        if (fontInfo.SnapToFontMetrics() == value)
+        {
+            return;
+        }
+
+        fontInfo.SnapToFontMetrics(value);
+        if (value)
+        {
+            _onGeometryChange();
+        }
+        _NotifyChanges(L"HasSnapToFontMetrics", L"SnapToFontMetrics", L"FontMetricSuggestedSizes");
+    }
+
+    bool AppearanceViewModel::HasSnapToFontMetrics() const
+    {
+        return _appearance.SourceProfile().FontInfo().HasSnapToFontMetrics();
+    }
+
+    void AppearanceViewModel::ClearSnapToFontMetrics()
+    {
+        const auto fontInfo = _appearance.SourceProfile().FontInfo();
+        if (!fontInfo.HasSnapToFontMetrics())
+        {
+            return;
+        }
+
+        fontInfo.ClearSnapToFontMetrics();
+        _NotifyChanges(L"HasSnapToFontMetrics", L"SnapToFontMetrics", L"FontMetricSuggestedSizes");
+    }
+
+    Model::FontConfig AppearanceViewModel::SnapToFontMetricsOverrideSource() const
+    {
+        return _appearance.SourceProfile().FontInfo().SnapToFontMetricsOverrideSource();
+    }
+
+    float AppearanceViewModel::SnapFontSizeNext()
+    {
+        if (!SnapToFontMetrics())
+        {
+            return FontSize();
+        }
+
+        const auto& result = _ensurePixelFontAnalysis();
+        const auto snapped = result.succeeded
+                                 ? ::Microsoft::Console::Render::SnapNext(result.pointSizeResult.candidates, FontSize())
+                                 : -1.0f;
+        return snapped > 0.0f ? snapped : FontSize();
+    }
+
+    float AppearanceViewModel::SnapFontSizePrevious()
+    {
+        if (!SnapToFontMetrics())
+        {
+            return FontSize();
+        }
+
+        const auto& result = _ensurePixelFontAnalysis();
+        const auto snapped = result.succeeded
+                                 ? ::Microsoft::Console::Render::SnapPrevious(result.pointSizeResult.candidates, FontSize())
+                                 : -1.0f;
+        return snapped > 0.0f ? snapped : FontSize();
+    }
+
+    winrt::hstring AppearanceViewModel::FontMetricSuggestedSizes()
+    {
+        if (!SnapToFontMetrics())
+        {
+            return winrt::hstring{};
+        }
+
+        const auto& result = _ensurePixelFontAnalysis();
+        if (!result.succeeded || result.pointSizeResult.candidates.empty())
+        {
+            return winrt::hstring{};
+        }
+
+        std::wstring out;
+        for (const auto& c : result.pointSizeResult.candidates)
+        {
+            if (!out.empty())
+            {
+                out += L", ";
+            }
+            out += fmt::format(FMT_COMPILE(L"{:.6g}"), c.pointSize);
+        }
+        return winrt::hstring{ out };
+    }
+
+    // -------------------------------------------------------------------------
+    // DPI
+    // -------------------------------------------------------------------------
+
+    float AppearanceViewModel::CurrentDpi() const noexcept
+    {
+        return _currentDpi;
+    }
+
+    void AppearanceViewModel::CurrentDpi(float dpi)
+    {
+        UpdateDpi(dpi);
+    }
+
+    void AppearanceViewModel::UpdateDpi(float dpi)
+    {
+        if (dpi <= 0.0f || std::abs(dpi - _currentDpi) < 0.5f)
+        {
+            return;
+        }
+        _currentDpi = dpi;
+        _invalidatePixelFontCache();
+        if (SnapToFontMetrics())
+        {
+            _onGeometryChange();
+        }
+        _NotifyChanges(L"FontMetricSuggestedSizes");
+    }
+
+    // -------------------------------------------------------------------------
+    // Analysis cache helper
+    // -------------------------------------------------------------------------
+
+    const ::Microsoft::Terminal::Settings::Editor::FontAnalysisResult& AppearanceViewModel::_ensurePixelFontAnalysis()
+    {
+        if (_pixelFontAnalysisCache)
+        {
+            return *_pixelFontAnalysisCache;
+        }
+
+        const auto fontFace = FontFace();
+        const auto fontInfo = _appearance.SourceProfile().FontInfo();
+        const auto weight = static_cast<uint32_t>(fontInfo.FontWeight().Weight);
+        const auto axesMap = fontInfo.HasFontAxes() ? fontInfo.FontAxes() : nullptr;
+        winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, float> axesView{ nullptr };
+        if (axesMap)
+        {
+            axesView = axesMap.GetView();
+        }
+
+        _pixelFontAnalysisCache = _analyzerFn(std::wstring_view{ fontFace }, weight, axesView, _currentDpi);
+        return *_pixelFontAnalysisCache;
+    }
+
+    // -------------------------------------------------------------------------
+    // Geometry-change handler: runs after committed FontFace / FontWeight / FontAxes changes.
+    // Writes CellHeight and CellWidth ratio strings and snaps FontSize when pixel mode is active.
+    // Does NOT dirty settings on page open (never called from constructor).
+    // -------------------------------------------------------------------------
+
+    void AppearanceViewModel::_onGeometryChange()
+    {
+        if (_inGeometryChange)
+        {
+            return;
+        }
+        _inGeometryChange = true;
+        auto resetGuard = gsl::finally([this]() noexcept { _inGeometryChange = false; });
+
+        _invalidatePixelFontCache();
+
+        const auto& result = _ensurePixelFontAnalysis();
+        if (!result.succeeded || result.unitsPerEm == 0)
+        {
+            // Analysis failed; surface status but preserve existing values.
+            _NotifyChanges(L"FontMetricSuggestedSizes");
+            return;
+        }
+
+        // Compute line-height and cell-width ratios from design metrics.
+        const auto lineHeightRatio = static_cast<double>(result.lineHeightUnits) /
+                                     static_cast<double>(result.unitsPerEm);
+        const auto cellWidthRatio = result.cellWidthUnits > 0
+                                        ? static_cast<double>(result.cellWidthUnits) /
+                                              static_cast<double>(result.unitsPerEm)
+                                        : 0.0;
+
+        const auto fontInfo = _appearance.SourceProfile().FontInfo();
+
+        // Write CellHeight (LineHeight in the ViewModel).
+        if (lineHeightRatio >= 0.1 && lineHeightRatio <= 10.0)
+        {
+            const auto str = fmt::format(FMT_COMPILE(L"{:.6g}"), lineHeightRatio);
+            if (fontInfo.CellHeight() != str)
+            {
+                fontInfo.CellHeight(winrt::hstring{ str });
+                _NotifyChanges(L"HasLineHeight", L"LineHeight");
+            }
+        }
+
+        // Write CellWidth.
+        if (cellWidthRatio >= 0.1 && cellWidthRatio <= 10.0)
+        {
+            const auto str = fmt::format(FMT_COMPILE(L"{:.6g}"), cellWidthRatio);
+            if (fontInfo.CellWidth() != str)
+            {
+                fontInfo.CellWidth(winrt::hstring{ str });
+                _NotifyChanges(L"HasCellWidth", L"CellWidth");
+            }
+        }
+
+        // Snap FontSize to nearest recommendation when pixel mode is active.
+        if (SnapToFontMetrics() && !result.pointSizeResult.candidates.empty())
+        {
+            const auto currentSize = FontSize();
+            const auto snapped = ::Microsoft::Console::Render::SnapNearest(
+                result.pointSizeResult.candidates, currentSize);
+            if (snapped > 0.0f && std::abs(snapped - currentSize) > 0.001f)
+            {
+                fontInfo.FontSize(snapped);
+                _NotifyChanges(L"HasFontSize", L"FontSize");
+            }
+        }
+
+        _NotifyChanges(L"FontMetricSuggestedSizes");
     }
 
     void AppearanceViewModel::_refreshFontFaceDependents()
@@ -833,6 +1116,12 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         used.RemoveAt(gsl::narrow<uint32_t>(it - used.begin()));
 
         _notifyChangesForFontSettingsReactive(fontSettingsIndex);
+
+        // FontAxes deletion affects pixel-font geometry; re-analyze.
+        if (fontSettingsIndex == FontAxesIndex)
+        {
+            _onGeometryChange();
+        }
     }
 
     void AppearanceViewModel::_deleteAllFontKeyValuePairs(FontSettingIndex fontSettingsIndex)
@@ -863,6 +1152,12 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         used.Clear();
 
         _notifyChangesForFontSettingsReactive(fontSettingsIndex);
+
+        // FontAxes deletions affect pixel-font geometry; re-analyze.
+        if (fontSettingsIndex == FontAxesIndex)
+        {
+            _onGeometryChange();
+        }
     }
 
     // Inserts the given menu item into the unused list, while keeping it sorted by the display text.
@@ -909,6 +1204,12 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         // Pwease call Profiles_Appearance::_onProfilePropertyChanged to make the pweview connyection wewoad. Thanks!! uwu
         // ...I hate this.
         _NotifyChanges(L"uwu");
+
+        // FontAxes changes affect pixel-font geometry; re-analyze.
+        if (!kvImpl->IsFontFeature())
+        {
+            _onGeometryChange();
+        }
     }
 
     void AppearanceViewModel::SetBackgroundImageOpacityFromPercentageValue(double percentageValue)
@@ -1463,6 +1764,53 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
             PropertyChanged.raise(*this, PropertyChangedEventArgs{ L"CurrentIntenseTextStyle" });
             PropertyChanged.raise(*this, PropertyChangedEventArgs{ L"CurrentAdjustIndistinguishableColors" });
             PropertyChanged.raise(*this, PropertyChangedEventArgs{ L"ShowProportionalFontWarning" });
+
+            // Subscribe to XamlRoot.Changed so we can track DPI changes and
+            // feed them into the PixelFont size analyser.  The initial call
+            // uses XamlRoot if it is already available (it may not be on the
+            // very first load before the element enters the visual tree); the
+            // Loaded event is a safe fallback for that case.
+            _xamlRootChangedRevoker.revoke();
+            const auto updateDpiFromXamlRoot = [weakThis = get_weak()]() {
+                if (const auto strongThis = weakThis.get())
+                {
+                    if (const auto xamlRoot = strongThis->XamlRoot())
+                    {
+                        const auto dpi = static_cast<float>(xamlRoot.RasterizationScale() * 96.0);
+                        const auto rounded = std::round(dpi);
+                        if (std::abs(rounded - strongThis->_lastKnownDpi) >= 0.5f)
+                        {
+                            strongThis->_lastKnownDpi = rounded;
+                            strongThis->Appearance().UpdateDpi(rounded);
+                        }
+                    }
+                }
+            };
+            if (const auto xamlRoot = XamlRoot())
+            {
+                _xamlRootChangedRevoker = xamlRoot.Changed(winrt::auto_revoke, [updateDpiFromXamlRoot](auto&&, auto&&) {
+                    updateDpiFromXamlRoot();
+                });
+                // Push the current DPI immediately (read-only; does not dirty settings).
+                updateDpiFromXamlRoot();
+            }
+            else
+            {
+                // Element is not yet in the visual tree; apply DPI once it is loaded.
+                _dpiLoadedRevoker = this->Loaded(winrt::auto_revoke, [weakThis = get_weak(), updateDpiFromXamlRoot](auto&&, auto&&) {
+                    if (const auto strongThis = weakThis.get())
+                    {
+                        if (const auto xamlRoot = strongThis->XamlRoot())
+                        {
+                            strongThis->_xamlRootChangedRevoker = xamlRoot.Changed(winrt::auto_revoke, [updateDpiFromXamlRoot](auto&&, auto&&) {
+                                updateDpiFromXamlRoot();
+                            });
+                        }
+                        updateDpiFromXamlRoot();
+                        strongThis->_dpiLoadedRevoker.revoke();
+                    }
+                });
+            }
         }
     }
 
@@ -1517,6 +1865,43 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         const auto tag = element.Tag();
         const auto kv = tag.as<Editor::FontKeyValuePair>();
         winrt::get_self<AppearanceViewModel>(Appearance())->DeleteFontKeyValuePair(kv);
+    }
+
+    void Appearances::SnapToFontMetrics_Toggled(const IInspectable& sender, const RoutedEventArgs& /*e*/)
+    {
+        if (const auto toggle = sender.try_as<Controls::ToggleSwitch>())
+        {
+            Appearance().SnapToFontMetrics(toggle.IsOn());
+        }
+    }
+
+    void Appearances::FontSizeBox_ValueChanged(
+        const IInspectable& /*sender*/,
+        const winrt::Microsoft::UI::Xaml::Controls::NumberBoxValueChangedEventArgs& args)
+    {
+        if (_isSnappingFontSize || !Appearance().SnapToFontMetrics())
+        {
+            return;
+        }
+
+        const auto oldValue = static_cast<float>(args.OldValue());
+        const auto newValue = static_cast<float>(args.NewValue());
+        if (std::isnan(oldValue) || std::isnan(newValue) || std::abs(newValue - oldValue) < 0.001f)
+        {
+            return;
+        }
+
+        const auto snapped = newValue > oldValue
+                                 ? Appearance().SnapFontSizeNext()
+                                 : Appearance().SnapFontSizePrevious();
+        if (std::abs(snapped - Appearance().FontSize()) < 0.001f)
+        {
+            return;
+        }
+
+        _isSnappingFontSize = true;
+        Appearance().FontSize(snapped);
+        _isSnappingFontSize = false;
     }
 
     bool Appearances::IsVintageCursor() const

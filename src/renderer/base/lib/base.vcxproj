@@ -12,6 +12,7 @@
   <Import Project="$(SolutionDir)src\common.nugetversions.props" />
   <ItemGroup>
     <ClCompile Include="..\CSSLengthPercentage.cpp" />
+    <ClCompile Include="..\PixelFontMetrics.cpp" />
     <ClCompile Include="..\FontInfo.cpp" />
     <ClCompile Include="..\FontInfoBase.cpp" />
     <ClCompile Include="..\FontInfoDesired.cpp" />
@@ -35,6 +36,7 @@
     <ClInclude Include="..\..\inc\IRenderEngine.hpp" />
     <ClInclude Include="..\..\inc\RenderEngineBase.hpp" />
     <ClInclude Include="..\..\inc\RenderSettings.hpp" />
+    <ClInclude Include="..\..\inc\PixelFontMetrics.hpp" />
     <ClInclude Include="..\FontCache.h" />
     <ClInclude Include="..\precomp.h" />
     <ClInclude Include="..\renderer.hpp" />

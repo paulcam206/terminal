@@ -15,6 +15,7 @@ static constexpr std::string_view FontInfoKey{ "font" };
 static constexpr std::string_view LegacyFontFaceKey{ "fontFace" };
 static constexpr std::string_view LegacyFontSizeKey{ "fontSize" };
 static constexpr std::string_view LegacyFontWeightKey{ "fontWeight" };
+static constexpr std::string_view LegacyPixelFontKey{ "experimental.pixelFont" };
 
 winrt::Microsoft::Terminal::Settings::Model::implementation::FontConfig::FontConfig(winrt::weak_ref<Profile> sourceProfile) :
     _sourceProfile(std::move(sourceProfile))
@@ -89,6 +90,15 @@ void FontConfig::LayerJson(const Json::Value& json)
 
         MTSM_FONT_SETTINGS(FONT_SETTINGS_LAYER_JSON)
 #undef FONT_SETTINGS_LAYER_JSON
+
+        // Legacy migration: read "experimental.pixelFont" only if the new key wasn't present.
+        // true → SnapToFontMetrics=true; false or null → SnapToFontMetrics=false.
+        if (!_SnapToFontMetrics.has_value() && fontInfoJson.isMember(JsonKey(LegacyPixelFontKey)))
+        {
+            const auto& legacyVal = fontInfoJson[JsonKey(LegacyPixelFontKey)];
+            _SnapToFontMetrics = legacyVal.isBool() && legacyVal.asBool();
+            _logSettingIfSet("experimental.snapToFontMetrics", _SnapToFontMetrics.has_value());
+        }
     }
     else
     {

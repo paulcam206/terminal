@@ -22,6 +22,7 @@ Author(s):
 #include "AppearanceViewModel.g.h"
 #include "Utils.h"
 #include "ViewModelHelpers.h"
+#include "FontMetricsAnalyzer.h"
 
 namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
 {
@@ -61,6 +62,14 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
 
     struct AppearanceViewModel : AppearanceViewModelT<AppearanceViewModel>, ViewModelHelper<AppearanceViewModel>
     {
+        // Seam for injecting a fake analyzer in unit tests.  The default
+        // implementation calls AnalyzeFontFace() from FontMetricsAnalyzer.h.
+        using AnalyzerFn = std::function<::Microsoft::Terminal::Settings::Editor::FontAnalysisResult(
+            std::wstring_view fontFaceSpec,
+            uint32_t weight,
+            winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, float> axes,
+            float dpi)>;
+
         enum FontSettingIndex
         {
             FontAxesIndex,
@@ -78,12 +87,35 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         };
 
         AppearanceViewModel(const Model::AppearanceConfig& appearance);
+        // Test constructor with injected analyzer.
+        AppearanceViewModel(const Model::AppearanceConfig& appearance, AnalyzerFn analyzerFn);
 
         winrt::hstring FontFace() const;
         void FontFace(const winrt::hstring& value);
         bool HasFontFace() const;
         void ClearFontFace();
         Model::FontConfig FontFaceOverrideSource() const;
+
+        // FontSize: explicit to support snap-list navigation in the view.
+        float FontSize() const;
+        void FontSize(float value);
+        bool HasFontSize() const;
+        void ClearFontSize();
+        Model::FontConfig FontSizeOverrideSource() const;
+
+        bool SnapToFontMetrics() const;
+        void SnapToFontMetrics(bool value);
+        bool HasSnapToFontMetrics() const;
+        void ClearSnapToFontMetrics();
+        Model::FontConfig SnapToFontMetricsOverrideSource() const;
+        float SnapFontSizeNext();
+        float SnapFontSizePrevious();
+        winrt::hstring FontMetricSuggestedSizes();
+
+        // DPI for point-size analysis
+        float CurrentDpi() const noexcept;
+        void CurrentDpi(float dpi);
+        void UpdateDpi(float dpi);
 
         double LineHeight() const;
         void LineHeight(const double value);
@@ -143,7 +175,7 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         // AppearanceViewModel is so we can continue to have the 'Text' grouping
         // we currently have in xaml, since that grouping has some settings that
         // are defined in AppearanceConfig and some that are not.
-        OBSERVABLE_PROJECTED_SETTING(_appearance.SourceProfile().FontInfo(), FontSize);
+        // FontSize is declared explicitly above (pixel-mode snapping in setter).
         OBSERVABLE_PROJECTED_SETTING(_appearance.SourceProfile().FontInfo(), FontWeight);
         OBSERVABLE_PROJECTED_SETTING(_appearance.SourceProfile().FontInfo(), EnableBuiltinGlyphs);
         OBSERVABLE_PROJECTED_SETTING(_appearance.SourceProfile().FontInfo(), EnableColorGlyphs);
@@ -167,7 +199,10 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
 
     private:
         void _invalidateFontFaceDependents() { _fontFaceDependents.reset(); }
+        void _invalidatePixelFontCache() { _pixelFontAnalysisCache.reset(); }
         void _refreshFontFaceDependents();
+        void _onGeometryChange();
+        const ::Microsoft::Terminal::Settings::Editor::FontAnalysisResult& _ensurePixelFontAnalysis();
         static std::pair<std::vector<Editor::FontKeyValuePair>::const_iterator, bool> _fontSettingSortedByKeyInsertPosition(const std::vector<Editor::FontKeyValuePair>& vec, uint32_t key);
         void _generateFontAxes(IDWriteFontFace* fontFace, const wchar_t* localeName, std::vector<Editor::FontKeyValuePair>& list);
         void _generateFontFeatures(IDWriteFontFace* fontFace, std::vector<Editor::FontKeyValuePair>& list);
@@ -182,6 +217,10 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         Model::AppearanceConfig _appearance;
         winrt::hstring _lastBgImagePath;
         std::optional<FontFaceDependentsData> _fontFaceDependents;
+        std::optional<::Microsoft::Terminal::Settings::Editor::FontAnalysisResult> _pixelFontAnalysisCache;
+        AnalyzerFn _analyzerFn;
+        float _currentDpi{ 96.0f };
+        bool _inGeometryChange{ false }; // recursion guard for _onGeometryChange
     };
 
     struct Appearances : AppearancesT<Appearances>
@@ -206,6 +245,8 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         void DeleteFontKeyValuePair_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& e);
         safe_void_coroutine BackgroundImage_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& e);
         void BIAlignment_Click(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& e);
+        void SnapToFontMetrics_Toggled(const Windows::Foundation::IInspectable& sender, const Windows::UI::Xaml::RoutedEventArgs& e);
+        void FontSizeBox_ValueChanged(const Windows::Foundation::IInspectable& sender, const winrt::Microsoft::UI::Xaml::Controls::NumberBoxValueChangedEventArgs& e);
 
         // manually bind FontWeight
         Windows::Foundation::IInspectable CurrentFontWeight() const;
@@ -229,6 +270,9 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
     private:
         winrt::weak_ref<Editor::IHostedInWindow> _WeakWindowRoot{ nullptr };
         Windows::UI::Xaml::Data::INotifyPropertyChanged::PropertyChanged_revoker _ViewModelChangedRevoker;
+        Windows::UI::Xaml::XamlRoot::Changed_revoker _xamlRootChangedRevoker;
+        Windows::UI::Xaml::FrameworkElement::Loaded_revoker _dpiLoadedRevoker;
+        float _lastKnownDpi{ 0.0f };
         std::array<Windows::UI::Xaml::Controls::Primitives::ToggleButton, 9> _BIAlignmentButtons;
         Windows::Foundation::Collections::IMap<uint16_t, Microsoft::Terminal::Settings::Editor::EnumEntry> _FontWeightMap;
         Editor::EnumEntry _CustomFontWeight{ nullptr };
@@ -237,6 +281,7 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         Windows::Foundation::Collections::IObservableVector<winrt::hstring> _FontFeaturesNames;
         std::wstring _fontNameFilter;
         bool _fontFaceBoxHasUserInput = false;
+        bool _isSnappingFontSize = false;
         bool _ShowAllFonts = false;
 
         static void _ViewModelChanged(const Windows::UI::Xaml::DependencyObject& d, const Windows::UI::Xaml::DependencyPropertyChangedEventArgs& e);

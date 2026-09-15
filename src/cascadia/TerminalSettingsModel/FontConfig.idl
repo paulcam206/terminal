@@ -24,5 +24,6 @@ namespace Microsoft.Terminal.Settings.Model
         INHERITABLE_FONT_SETTING(Boolean, EnableColorGlyphs);
         INHERITABLE_FONT_SETTING(String, CellWidth);
         INHERITABLE_FONT_SETTING(String, CellHeight);
+        INHERITABLE_FONT_SETTING(Boolean, SnapToFontMetrics);
     }
 }

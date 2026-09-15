@@ -16,6 +16,7 @@
   <Import Project="$(OpenConsoleDir)src\common.nugetversions.props" />
   <Import Project="$(OpenConsoleDir)src\cppwinrt.build.pre.props" />
   <ItemGroup>
+    <ClCompile Include="PixelFontMetricsTest.cpp" />
     <ClCompile Include="ScreenSizeLimitsTest.cpp" />
     <ClCompile Include="SelectionTest.cpp" />
     <ClCompile Include="InputTest.cpp" />

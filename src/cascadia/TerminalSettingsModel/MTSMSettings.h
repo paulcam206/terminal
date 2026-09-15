@@ -140,7 +140,8 @@ Author(s):
     X(bool, EnableBuiltinGlyphs, "builtinGlyphs", true)                                \
     X(bool, EnableColorGlyphs, "colorGlyphs", true)                                    \
     X(winrt::hstring, CellWidth, "cellWidth")                                          \
-    X(winrt::hstring, CellHeight, "cellHeight")
+    X(winrt::hstring, CellHeight, "cellHeight")                               \
+    X(bool, SnapToFontMetrics, "experimental.snapToFontMetrics", false)
 
 #define MTSM_APPEARANCE_SETTINGS(X)                                                                                                                                \
     X(Core::CursorStyle, CursorShape, "cursorShape", Core::CursorStyle::Bar)                                                                                       \

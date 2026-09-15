@@ -68,7 +68,23 @@ namespace Microsoft.Terminal.Settings.Editor
         Object FontFeaturesOverrideSource { get; };
 
         OBSERVABLE_PROJECTED_APPEARANCE_SETTING(String, FontFace);
-        OBSERVABLE_PROJECTED_APPEARANCE_SETTING(Single, FontSize);
+
+        // FontSize: same shape as OBSERVABLE_PROJECTED_APPEARANCE_SETTING.
+        Single FontSize { get; set; };
+        Boolean HasFontSize { get; };
+        void ClearFontSize();
+        Object FontSizeOverrideSource { get; };
+
+        OBSERVABLE_PROJECTED_APPEARANCE_SETTING(Boolean, SnapToFontMetrics);
+
+        Single SnapFontSizeNext();
+        Single SnapFontSizePrevious();
+        String FontMetricSuggestedSizes { get; };
+
+        // DPI used for point-size analysis; update from the page when DPI changes
+        Single CurrentDpi;
+        void UpdateDpi(Single dpi);
+
         OBSERVABLE_PROJECTED_APPEARANCE_SETTING(Double, LineHeight);
         OBSERVABLE_PROJECTED_APPEARANCE_SETTING(Double, CellWidth);
         OBSERVABLE_PROJECTED_APPEARANCE_SETTING(Windows.UI.Text.FontWeight, FontWeight);

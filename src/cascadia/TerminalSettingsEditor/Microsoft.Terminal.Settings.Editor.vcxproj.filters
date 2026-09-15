@@ -12,10 +12,12 @@
     <ClCompile Include="init.cpp" />
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
     <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="FontMetricsAnalyzer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="Utils.h" />
+    <ClInclude Include="FontMetricsAnalyzer.h" />
     <ClInclude Include="PreviewConnection.h" />
     <ClInclude Include="SegoeFluentIconList.h" />
   </ItemGroup>

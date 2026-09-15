@@ -312,18 +312,39 @@
                 </local:SettingsCard.HeaderIcon>
             </local:SettingsCard>
 
+            <!--  Font metric snapping  -->
+            <local:SettingsCard x:Name="SnapToFontMetrics"
+                                x:Uid="Profile_PixelFont"
+                                Visibility="{x:Bind Appearance.IsDefault, Mode=OneWay}">
+                <StackPanel Spacing="4">
+                    <ToggleSwitch x:Name="SnapToFontMetricsToggle"
+                                  x:Uid="Profile_PixelFontToggle"
+                                  IsOn="{x:Bind Appearance.SnapToFontMetrics, Mode=TwoWay}"
+                                  Style="{StaticResource ToggleSwitchInExpanderStyle}"
+                                  Toggled="SnapToFontMetrics_Toggled" />
+                </StackPanel>
+            </local:SettingsCard>
+
             <!--  Font Size  -->
             <local:SettingsCard x:Name="FontSize"
                                 x:Uid="Profile_FontSize"
                                 Visibility="{x:Bind Appearance.IsDefault, Mode=OneWay}">
-                <muxc:NumberBox x:Name="_fontSizeBox"
-                                x:Uid="Profile_FontSizeBox"
-                                LargeChange="10"
-                                Maximum="128"
-                                Minimum="1"
-                                SmallChange="1"
-                                Style="{StaticResource NumberBoxSettingStyle}"
-                                Value="{x:Bind Appearance.FontSize, Mode=TwoWay}" />
+                <StackPanel Spacing="4">
+                    <muxc:NumberBox x:Name="_fontSizeBox"
+                                    x:Uid="Profile_FontSizeBox"
+                                    LargeChange="10"
+                                    Maximum="128"
+                                    Minimum="1"
+                                    SmallChange="1"
+                                    Style="{StaticResource NumberBoxSettingStyle}"
+                                    Value="{x:Bind Appearance.FontSize, Mode=TwoWay}"
+                                    ValueChanged="FontSizeBox_ValueChanged" />
+                    <TextBlock x:Uid="Profile_PixelFontRecommendedSizes"
+                               Style="{StaticResource SettingsPageItemDescriptionStyle}"
+                               Text="{x:Bind Appearance.FontMetricSuggestedSizes, Mode=OneWay}"
+                               TextWrapping="Wrap"
+                               Visibility="{x:Bind mtu:Converters.StringNotEmptyToVisibility(Appearance.FontMetricSuggestedSizes), Mode=OneWay}" />
+                </StackPanel>
             </local:SettingsCard>
 
             <!--  Line Height  -->

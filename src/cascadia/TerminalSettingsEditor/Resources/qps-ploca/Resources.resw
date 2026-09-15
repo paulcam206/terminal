@@ -990,6 +990,34 @@
     <value>Šīżĕ õƒ ŧнę ƒбπť įŉ φοïηŧŝ. !!! !!! !!</value>
     <comment>A description for what the "font size" setting does. Presented near "Profile_FontSize".</comment>
   </data>
+  <data name="Profile_PixelFontRecommendedSizes.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Řĕçŏммĕňďĕď рίхеł-рĕřƒĕçт şίźĕş !!!</value>
+    <comment>Accessibility name for a read-only text block that lists the recommended pixel-perfect point sizes for the current pixel font.</comment>
+  </data>
+  <data name="Profile_PixelFont.Header" xml:space="preserve">
+    <value>Рίхеł ƒŏňт řĕňďĕřίňĝ !!!</value>
+    <comment>Header for a control that enables or overrides automatic pixel-font rendering mode detection.</comment>
+  </data>
+  <data name="Profile_PixelFont.HelpText" xml:space="preserve">
+    <value>Ōνĕřřίďĕ àůτŏмàτίç рίхеł-ƒŏňт ďĕτĕçτίŏň. Ψĥĕň ĕňàвłĕď, ĝłÿрĥ ŏůτłίňĕş àřĕ şňàррĕď то рίхеł вŏůňďàřίĕş ƒŏř çřίşр řĕňďĕřίňĝ àт şрĕçίƒίç рŏίňт şίźĕş. !!! !!! !!! !!!</value>
+    <comment>A description for the pixel-font rendering setting. Presented near "Profile_PixelFont".</comment>
+  </data>
+  <data name="Profile_PixelFontToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Рίхеł ƒŏňт řĕňďĕřίňĝ ĕňàвłĕď !!!</value>
+    <comment>Accessibility name for the toggle switch that enables or disables pixel-font rendering mode.</comment>
+  </data>
+  <data name="Profile_PixelFontToggle.OnContent" xml:space="preserve">
+    <value>Еňàвłĕď !!!</value>
+    <comment>Label shown on the pixel-font toggle switch when pixel-font rendering is on.</comment>
+  </data>
+  <data name="Profile_PixelFontToggle.OffContent" xml:space="preserve">
+    <value>Ďίşàвłĕď !!!</value>
+    <comment>Label shown on the pixel-font toggle switch when pixel-font rendering is off.</comment>
+  </data>
+  <data name="Profile_PixelFontAliasedGuidance.Text" xml:space="preserve">
+    <value>Ƒŏř τĥĕ şĥàřрĕşт рίхеł-ƒŏňт řĕňďĕřίňĝ, şĕт Тĕхт àňτί-àłίàşίňĝ то "Àłίàşĕď". !!! !!! !!</value>
+    <comment>Informational tip shown below the pixel-font toggle when pixel-font mode is active.</comment>
+  </data>
   <data name="Profile_LineHeight.Header" xml:space="preserve">
     <value>Ŀīйĕ ĥĕΐĝђŧ !!!</value>
     <comment>Header for a control that sets the text line height.</comment>
